@@ -23,7 +23,7 @@ public class CohereChatBot extends JFrame {
     private final JLabel typingLabel = new JLabel("");
 
     public CohereChatBot() {
-        super("UNIVERSAL-chatbot ");
+        super("chatbot AI ");
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setSize(720, 820);
         setLocationRelativeTo(null);
@@ -38,7 +38,7 @@ public class CohereChatBot extends JFrame {
         JPanel topBar = new JPanel(new BorderLayout(10, 0));
         topBar.setBackground(new Color(18, 24, 38));
         topBar.setBorder(new EmptyBorder(14, 18, 14, 18));
-        JLabel title = new JLabel("UNIVERSAL-Chatbot");
+        JLabel title = new JLabel("Chatbot AI");
         title.setForeground(Color.WHITE);
         title.setFont(new Font("Inter", Font.BOLD, 18));
         topBar.add(title, BorderLayout.WEST);
@@ -381,3 +381,4 @@ public class CohereChatBot extends JFrame {
         });
     }
 }
+
