@@ -1,384 +1,490 @@
-import javax.swing.*;
-import javax.swing.border.*;
 import java.awt.*;
-import java.awt.event.*;
-import java.awt.geom.RoundRectangle2D;
 import java.io.*;
-import java.net.*;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.time.LocalTime;
-import java.time.format.DateTimeFormatter;
-import org.json.*;
-import java.awt.datatransfer.StringSelection;
+import java.util.ArrayList;
+import java.util.List;
+import javax.swing.*;
+import javax.swing.border.EmptyBorder;
+import org.json.JSONObject;
 
+/**
+ * CohereChatBot - Material-style chat UI
+ */
 public class CohereChatBot extends JFrame {
-    private static final String COHERE_API_KEY = "SZoFo4rhvY2r7m3zwmhxTCIWdMyzwV071xZVofBp";
-    private static final String COHERE_API_URL = "https://api.cohere.ai/v1/chat";
-    private static final String COHERE_MODEL = "command-xlarge-nightly";
 
     private final JPanel messageList = new JPanel();
     private final JScrollPane scrollPane = new JScrollPane(messageList);
-    private final PlaceholderTextField inputField = new PlaceholderTextField("Type a message...");
-    private final JButton sendButton = new JButton("\u27A4");
-    private final JLabel typingLabel = new JLabel("");
+    private final PlaceholderTextField inputField =
+            new PlaceholderTextField("Type a message...");
+    private final JButton sendButton;
+    private final JLabel typingLabel = new JLabel(" ");
+
+    private final List<JSONObject> conversationHistory = new ArrayList<>();
+
+    // <<< PUT YOUR REAL KEY HERE >>>
+    private static final String COHERE_API_KEY = "JdIlhyujw6r5xsEjAXqvs8HsZTkpII04GbPw8wjy";
+    private static final String COHERE_CHAT_URL = "https://api.cohere.ai/v1/chat";
+    private static final String CURRENT_MODEL = "command-a-03-2025";
+
+    // Material-ish palette
+    private static final Color BG = new Color(248, 244, 240);
+    private static final Color CARD = new Color(255, 255, 255);
+    private static final Color PRIMARY = new Color(98, 0, 238);
+    private static final Color ACCENT = new Color(124, 77, 255);
+    private static final Color USER_BUBBLE = new Color(225, 242, 255);
+    private static final Color BOT_BUBBLE = new Color(250, 250, 255);
+    private static final Color SUB_TEXT = new Color(120, 120, 130);
 
     public CohereChatBot() {
-        super("chatbot AI ");
+        super("Universal Chatbot - Material UI");
         setDefaultCloseOperation(EXIT_ON_CLOSE);
-        setSize(720, 820);
+        setSize(980, 720);
         setLocationRelativeTo(null);
         setLayout(new BorderLayout());
+
+        sendButton = new RoundedButton("Send", ACCENT, Color.WHITE);
+        sendButton.setFont(new Font("Inter", Font.BOLD, 14));
+        sendButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        sendButton.setMargin(new Insets(10, 18, 10, 18));
+        sendButton.setPreferredSize(new Dimension(88, 40));
+        sendButton.addActionListener(e -> sendMessage());
+
+        typingLabel.setFont(new Font("Inter", Font.ITALIC, 13));
+        typingLabel.setForeground(SUB_TEXT);
+        typingLabel.setHorizontalAlignment(SwingConstants.LEFT);
+
         initUI();
-        addMessage("Bot", "Hello! I'm your assistant. Ask me anything.", false);
     }
 
     private void initUI() {
-        try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch (Exception ignored) {}
+        getContentPane().setBackground(BG);
+        add(createTopPanel(), BorderLayout.NORTH);
+        add(createCenterPanel(), BorderLayout.CENTER);
+        add(createBottomPanel(), BorderLayout.SOUTH);
+    }
 
-        JPanel topBar = new JPanel(new BorderLayout(10, 0));
-        topBar.setBackground(new Color(18, 24, 38));
-        topBar.setBorder(new EmptyBorder(14, 18, 14, 18));
-        JLabel title = new JLabel("Chatbot AI");
-        title.setForeground(Color.WHITE);
-        title.setFont(new Font("Inter", Font.BOLD, 18));
-        topBar.add(title, BorderLayout.WEST);
+    // ---------- TOP BAR ----------
 
-        JPanel topRight = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
-        topRight.setOpaque(false);
-        JButton settings = iconButton("\u2699");
-        JButton clear = iconButton("\u267B");
-        settings.setToolTipText("Settings");
-        clear.setToolTipText("Clear chat");
-        clear.addActionListener(e -> clearMessages());
-        topRight.add(clear);
-        topRight.add(settings);
-        topBar.add(topRight, BorderLayout.EAST);
+    private JPanel createTopPanel() {
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.setOpaque(false);
+        topPanel.setBorder(new EmptyBorder(22, 26, 8, 26));
 
-        add(topBar, BorderLayout.NORTH);
+        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 6));
+        left.setOpaque(false);
 
+        JLabel logoIcon = new JLabel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                        RenderingHints.VALUE_ANTIALIAS_ON);
+                int size = Math.min(getWidth(), getHeight());
+                g2.setColor(ACCENT);
+                g2.fillOval(0, 0, size, size);
+                g2.setColor(Color.WHITE);
+                g2.setFont(new Font("Inter", Font.BOLD, 18));
+                String label = "UB";
+                FontMetrics fm = g2.getFontMetrics();
+                int tx = (size - fm.stringWidth(label)) / 2;
+                int ty = (size + fm.getAscent() - fm.getDescent()) / 2;
+                g2.drawString(label, tx, ty);
+                g2.dispose();
+            }
+        };
+        logoIcon.setPreferredSize(new Dimension(52, 52));
+
+        JLabel title = new JLabel(
+                "<html><span style='font-family:Inter; font-weight:700; font-size:18pt;'>Universal Chatbot</span>"
+                        + "<br><span style='font-family:Inter; font-weight:400; font-size:10pt; color:#777777;'>Hi! How can I assist you today?</span></html>");
+        left.add(logoIcon);
+        left.add(title);
+
+        topPanel.add(left, BorderLayout.WEST);
+        return topPanel;
+    }
+
+    // ---------- CENTER (chips + chat) ----------
+
+    private JPanel createCenterPanel() {
+        JPanel centerPanel = new JPanel(new BorderLayout());
+        centerPanel.setOpaque(false);
+        centerPanel.setBorder(new EmptyBorder(4, 26, 8, 26));
+
+        // quick action chips
+        JPanel categoriesPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 6));
+        categoriesPanel.setOpaque(false);
+        String[] categories = {
+                "Explain Java", "Code review", "Debug help", "System design",
+                "AR/VR ideas", "Full-stack tips", "Chatbot tutorial", "Clear chat"
+        };
+        for (String txt : categories) {
+            JButton chip = new JButton(txt);
+            chip.setFont(new Font("Inter", Font.PLAIN, 13));
+            chip.setBackground(Color.WHITE);
+            chip.setBorder(new RoundedBorder(24, new Color(220, 220, 220)));
+            chip.setFocusPainted(false);
+            chip.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            chip.setPreferredSize(new Dimension(150, 34));
+            chip.addActionListener(e -> {
+                if ("Clear chat".equals(txt)) {
+                    messageList.removeAll();
+                    conversationHistory.clear();
+                    messageList.revalidate();
+                    messageList.repaint();
+                } else {
+                    inputField.setText(txt + " ");
+                    inputField.requestFocusInWindow();
+                }
+            });
+            categoriesPanel.add(chip);
+        }
+
+        // chat area
         messageList.setLayout(new BoxLayout(messageList, BoxLayout.Y_AXIS));
-        messageList.setBackground(new Color(248, 250, 252));
-        messageList.setBorder(new EmptyBorder(8, 8, 8, 8));
+        messageList.setBackground(BG);
+        messageList.setOpaque(true);
+        messageList.setBorder(new EmptyBorder(12, 12, 12, 12));
 
         scrollPane.setBorder(null);
+        scrollPane.setOpaque(false);
+        scrollPane.getViewport().setOpaque(false);
         scrollPane.getVerticalScrollBar().setUnitIncrement(16);
-        scrollPane.setBackground(new Color(248, 250, 252));
-        add(scrollPane, BorderLayout.CENTER);
 
-        JPanel inputBar = new JPanel(new BorderLayout(8, 8));
-        inputBar.setBorder(new EmptyBorder(12, 12, 12, 12));
-        inputBar.setBackground(new Color(248, 250, 252));
+        // material card wrapper for chat
+        JPanel card = new JPanel(new BorderLayout());
+        card.setBackground(CARD);
+        card.setBorder(new EmptyBorder(14, 14, 14, 14));
+        card.setOpaque(true);
+        card.add(scrollPane, BorderLayout.CENTER);
 
-        inputField.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        inputField.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(new Color(220, 225, 230), 1),
-                new EmptyBorder(8, 10, 8, 10)
-        ));
-        inputField.setPreferredSize(new Dimension(0, 36));
-        inputField.addActionListener(e -> sendMessage());
+        centerPanel.add(categoriesPanel, BorderLayout.NORTH);
+        centerPanel.add(card, BorderLayout.CENTER);
+        return centerPanel;
+    }
 
-        sendButton.setFont(new Font("Segoe UI", Font.BOLD, 14));
-        sendButton.setBackground(new Color(0, 120, 212));
-        sendButton.setForeground(Color.WHITE);
-        sendButton.setFocusPainted(false);
-        sendButton.setBorder(new EmptyBorder(8, 12, 8, 12));
-        sendButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        sendButton.addActionListener(e -> sendMessage());
+    // ---------- BOTTOM INPUT BAR ----------
 
-        JPanel left = new JPanel(new BorderLayout(8, 8));
-        left.setOpaque(false);
-        left.add(inputField, BorderLayout.CENTER);
+    private JPanel createBottomPanel() {
+        JPanel bottomPanel = new JPanel(new BorderLayout());
+        bottomPanel.setOpaque(false);
+        bottomPanel.setBorder(new EmptyBorder(10, 26, 20, 26));
 
-        JPanel right = new JPanel(new BorderLayout());
-        right.setOpaque(false);
-        right.add(sendButton, BorderLayout.CENTER);
+        // typing label
+        JPanel typingRow = new JPanel(new BorderLayout());
+        typingRow.setOpaque(false);
+        typingRow.add(typingLabel, BorderLayout.WEST);
+        bottomPanel.add(typingRow, BorderLayout.NORTH);
 
-        inputBar.add(left, BorderLayout.CENTER);
-        inputBar.add(right, BorderLayout.EAST);
-
-        JPanel bottomRow = new JPanel(new BorderLayout());
-        bottomRow.setOpaque(false);
-        typingLabel.setFont(new Font("Segoe UI", Font.ITALIC, 12));
-        typingLabel.setForeground(new Color(100, 100, 120));
-        bottomRow.add(typingLabel, BorderLayout.WEST);
-        bottomRow.add(inputBar, BorderLayout.CENTER);
-
-        add(bottomRow, BorderLayout.SOUTH);
-
-        messageList.addMouseListener(new MouseAdapter() {
-            public void mousePressed(MouseEvent e) { maybeShowMenu(e); }
-            public void mouseReleased(MouseEvent e) { maybeShowMenu(e); }
-            private void maybeShowMenu(MouseEvent e) {
-                if (e.isPopupTrigger()) {
-                    JPopupMenu menu = new JPopupMenu();
-                    JMenuItem copyAll = new JMenuItem("Copy all messages");
-                    copyAll.addActionListener(a -> copyAllMessages());
-                    menu.add(copyAll);
-                    menu.show(e.getComponent(), e.getX(), e.getY());
-                }
+        // rounded card with input + send
+        JPanel inputCard = new JPanel(new BorderLayout(12, 0)) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                        RenderingHints.VALUE_ANTIALIAS_ON);
+                int arc = 18;
+                g2.setColor(CARD);
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), arc, arc);
+                g2.setColor(new Color(0, 0, 0, 15));
+                g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, arc, arc);
+                g2.dispose();
+                super.paintComponent(g);
             }
-        });
+        };
+        inputCard.setOpaque(false);
+        inputCard.setBorder(new EmptyBorder(8, 12, 8, 12));
+        inputCard.setPreferredSize(new Dimension(800, 64));
+
+        JLabel iconLabel = new JLabel("\uD83D\uDD0D");
+        iconLabel.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 20));
+        iconLabel.setForeground(new Color(140, 140, 150));
+        iconLabel.setBorder(new EmptyBorder(4, 4, 4, 8));
+        inputCard.add(iconLabel, BorderLayout.WEST);
+
+        inputField.setFont(new Font("Inter", Font.PLAIN, 14));
+        inputField.setBorder(null);
+        inputField.setOpaque(false);
+        inputField.addActionListener(e -> sendMessage());
+        inputCard.add(inputField, BorderLayout.CENTER);
+
+        JPanel sendWrap = new JPanel(new GridBagLayout());
+        sendWrap.setOpaque(false);
+        sendWrap.add(sendButton);
+        inputCard.add(sendWrap, BorderLayout.EAST);
+
+        bottomPanel.add(inputCard, BorderLayout.CENTER);
+        return bottomPanel;
     }
 
-    private JButton iconButton(String text) {
-        JButton b = new JButton(text);
-        b.setFont(new Font("Segoe UI Symbol", Font.PLAIN, 14));
-        b.setBackground(new Color(27, 34, 45));
-        b.setForeground(Color.WHITE);
-        b.setFocusPainted(false);
-        b.setBorder(new EmptyBorder(8, 10, 8, 10));
-        return b;
-    }
-
-    private void addMessage(String sender, String message, boolean isUser) {
-        JPanel row = new JPanel(new BorderLayout());
-        row.setOpaque(false);
-        row.setAlignmentX(Component.LEFT_ALIGNMENT);
-        row.setBorder(new EmptyBorder(6, 6, 6, 6));
-
-        Avatar avatar = new Avatar(isUser ? "Y" : "C", isUser ? new Color(0, 120, 212) : new Color(70, 80, 90));
-        JPanel avatarWrap = new JPanel(new BorderLayout());
-        avatarWrap.setOpaque(false);
-        avatarWrap.add(avatar, BorderLayout.NORTH);
-
-        BubblePanel bubble = new BubblePanel(message, isUser);
-        JPanel bubbleWrap = new JPanel(new BorderLayout());
-        bubbleWrap.setOpaque(false);
-        if (isUser) {
-            bubbleWrap.add(bubble, BorderLayout.EAST);
-            row.add(bubbleWrap, BorderLayout.CENTER);
-            row.add(avatarWrap, BorderLayout.EAST);
-        } else {
-            bubbleWrap.add(bubble, BorderLayout.WEST);
-            row.add(avatarWrap, BorderLayout.WEST);
-            row.add(bubbleWrap, BorderLayout.CENTER);
-        }
-
-        messageList.add(row);
-        messageList.revalidate();
-        SwingUtilities.invokeLater(() -> scrollPane.getVerticalScrollBar()
-                .setValue(scrollPane.getVerticalScrollBar().getMaximum()));
-    }
-
-    private void clearMessages() {
-        messageList.removeAll();
-        messageList.revalidate();
-        messageList.repaint();
-    }
-
-    private void copyAllMessages() {
-        StringBuilder sb = new StringBuilder();
-        for (Component comp : messageList.getComponents()) {
-            if (comp instanceof JPanel) {}
-        }
-        Toolkit.getDefaultToolkit().getSystemClipboard()
-                .setContents(new StringSelection(sb.toString()), null);
-    }
+    // ---------- SEND / API ----------
 
     private void sendMessage() {
         String text = inputField.getText().trim();
         if (text.isEmpty()) return;
-        addMessage("You", text, true);
+
+        addMessageBubble("You", text, USER_BUBBLE, FlowLayout.RIGHT);
         inputField.setText("");
-        setTyping(true);
+        typingLabel.setText("UB is typing...");
 
         SwingWorker<String, Void> worker = new SwingWorker<>() {
             @Override
             protected String doInBackground() {
-                try { Thread.sleep(350); } catch (InterruptedException ignored) {}
-                return getCohereResponse(text);
+                try {
+                    if (COHERE_API_KEY.equals("YOUR_COHERE_API_KEY")) {
+                        return "Set your Cohere API key in COHERE_API_KEY to get live responses.";
+                    }
+                    return callCohereAPI(text);
+                } catch (Exception e) {
+                    return "Error: " + e.getMessage();
+                }
             }
 
             @Override
             protected void done() {
                 try {
-                    String response = get();
-                    addMessage("Bot", response, false);
+                    String reply = get();
+                    addMessageBubble("Cohere", reply, BOT_BUBBLE, FlowLayout.LEFT);
                 } catch (Exception e) {
-                    addMessage("Bot", "Error: " + e.getMessage(), false);
-                } finally {
-                    setTyping(false);
+                    addMessageBubble("Bot", "Failed to get response.", BOT_BUBBLE, FlowLayout.LEFT);
                 }
+                typingLabel.setText(" ");
             }
         };
         worker.execute();
     }
 
-    private void setTyping(boolean on) {
-        if (on) startTypingAnimation();
-        else {
-            stopTypingAnimation();
-            typingLabel.setText("");
+    private String callCohereAPI(String userMessage) throws Exception {
+        JSONObject request = new JSONObject();
+        request.put("model", CURRENT_MODEL);
+        request.put("message", userMessage);
+        request.put("temperature", 0.3);
+        request.put("max_tokens", 800);
+
+        URL url = new URL(COHERE_CHAT_URL);
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setRequestMethod("POST");
+        conn.setRequestProperty("Content-Type", "application/json");
+        conn.setRequestProperty("Authorization", "Bearer " + COHERE_API_KEY);
+        conn.setDoOutput(true);
+        conn.setConnectTimeout(15000);
+        conn.setReadTimeout(30000);
+
+        try (OutputStream os = conn.getOutputStream()) {
+            byte[] input = request.toString().getBytes(StandardCharsets.UTF_8);
+            os.write(input, 0, input.length);
+        }
+
+        int responseCode = conn.getResponseCode();
+        InputStream stream =
+                (responseCode >= 200 && responseCode < 300) ? conn.getInputStream() : conn.getErrorStream();
+
+        try (BufferedReader br = new BufferedReader(
+                new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+            StringBuilder response = new StringBuilder();
+            String line;
+            while ((line = br.readLine()) != null) {
+                response.append(line.trim());
+            }
+            JSONObject json = new JSONObject(response.toString());
+            if (json.has("text")) return json.getString("text").trim();
+            if (json.has("message")) return json.getString("message").trim();
+            return response.toString();
         }
     }
 
-    private Timer typingTimer;
-    private int dotCount = 0;
+    // ---------- MESSAGE BUBBLES ----------
 
-    private void startTypingAnimation() {
-        typingLabel.setText("Cohere is typing");
-        dotCount = 0;
-        typingTimer = new Timer(400, e -> {
-            dotCount = (dotCount + 1) % 4;
-            String dots = ".".repeat(dotCount);
-            typingLabel.setText("Cohere is typing" + dots);
+    private void addMessageBubble(String sender, String text, Color bg, int flowAlign) {
+        JPanel wrapper = new JPanel(new FlowLayout(
+                flowAlign == FlowLayout.LEFT ? FlowLayout.LEFT : FlowLayout.RIGHT,
+                10, 6));
+        wrapper.setOpaque(false);
+
+        JLabel avatar = createAvatarLabel(sender.equals("You") ? "Y" : "C",
+                sender.equals("You"));
+
+        JTextArea message = new JTextArea(text);
+        message.setFont(new Font("Inter", Font.PLAIN, 14));
+        message.setEditable(false);
+        message.setLineWrap(true);
+        message.setWrapStyleWord(true);
+        message.setOpaque(false);
+
+        int maxWidth = 620;
+        message.setSize(new Dimension(maxWidth, Short.MAX_VALUE));
+        Dimension pref = message.getPreferredSize();
+        message.setPreferredSize(new Dimension(Math.min(maxWidth, pref.width), pref.height));
+
+        JPanel colorLayer = new JPanel(new BorderLayout()) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                        RenderingHints.VALUE_ANTIALIAS_ON);
+                int arc = 14;
+                g2.setColor(new Color(0, 0, 0, 10));
+                g2.fillRoundRect(2, 2, getWidth() - 4, getHeight() - 4, arc, arc);
+                g2.setColor(bg);
+                g2.fillRoundRect(0, 0, getWidth() - 4, getHeight() - 6, arc, arc);
+                g2.dispose();
+                super.paintComponent(g);
+            }
+        };
+        colorLayer.setOpaque(false);
+        colorLayer.setBorder(new EmptyBorder(8, 10, 8, 10));
+        colorLayer.add(message, BorderLayout.CENTER);
+
+        JPanel bubble = new JPanel(new BorderLayout());
+        bubble.setOpaque(false);
+        bubble.add(colorLayer, BorderLayout.CENTER);
+
+        JPanel row = new JPanel();
+        row.setOpaque(false);
+        row.setLayout(new BoxLayout(row, BoxLayout.X_AXIS));
+
+        if (flowAlign == FlowLayout.LEFT) {
+            row.add(avatar);
+            row.add(Box.createHorizontalStrut(10));
+            row.add(bubble);
+            row.add(Box.createHorizontalGlue());
+        } else {
+            row.add(Box.createHorizontalGlue());
+            row.add(bubble);
+            row.add(Box.createHorizontalStrut(10));
+            row.add(avatar);
+        }
+
+        wrapper.add(row);
+        messageList.add(wrapper);
+        messageList.add(Box.createVerticalStrut(6));
+        messageList.revalidate();
+        messageList.repaint();
+        scrollToBottom();
+    }
+
+    private JLabel createAvatarLabel(String text, boolean isUser) {
+        JLabel avatar = new JLabel(text, SwingConstants.CENTER) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                        RenderingHints.VALUE_ANTIALIAS_ON);
+                Color fill = isUser ? ACCENT : new Color(200, 200, 210);
+                g2.setColor(fill);
+                g2.fillOval(0, 0, getWidth(), getHeight());
+                g2.setColor(Color.WHITE);
+                g2.setFont(new Font("Inter", Font.BOLD, 13));
+                FontMetrics fm = g2.getFontMetrics();
+                int tx = (getWidth() - fm.stringWidth(getText())) / 2;
+                int ty = (getHeight() + fm.getAscent() - fm.getDescent()) / 2;
+                g2.drawString(getText(), tx, ty);
+                g2.dispose();
+            }
+        };
+        avatar.setPreferredSize(new Dimension(40, 40));
+        avatar.setOpaque(false);
+        return avatar;
+    }
+
+    private void scrollToBottom() {
+        SwingUtilities.invokeLater(() -> {
+            JScrollBar bar = scrollPane.getVerticalScrollBar();
+            bar.setValue(bar.getMaximum());
         });
-        typingTimer.start();
     }
 
-    private void stopTypingAnimation() {
-        if (typingTimer != null) {
-            typingTimer.stop();
-            typingTimer = null;
+    // ---------- Helper classes ----------
+
+    static class RoundedBorder extends javax.swing.border.AbstractBorder {
+        private final int radius;
+        private final Color color;
+        RoundedBorder(int radius, Color color) {
+            this.radius = radius;
+            this.color = color;
         }
-    }
-
-    private String getCohereResponse(String userMessage) {
-        if (COHERE_API_KEY == null || COHERE_API_KEY.isEmpty()) {
-            return "API key not set. Set COHERE_API_KEY environment variable.";
-        }
-        try {
-            URL url = new URL(COHERE_API_URL);
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("POST");
-            conn.setRequestProperty("Content-Type", "application/json");
-            conn.setRequestProperty("Authorization", "Bearer " + COHERE_API_KEY);
-            conn.setDoOutput(true);
-
-            JSONObject requestBody = new JSONObject();
-            requestBody.put("message", userMessage);
-            requestBody.put("model", COHERE_MODEL);
-            requestBody.put("temperature", 0.3);
-
-            try (OutputStream os = conn.getOutputStream()) {
-                byte[] input = requestBody.toString().getBytes(StandardCharsets.UTF_8);
-                os.write(input, 0, input.length);
-            }
-
-            int responseCode = conn.getResponseCode();
-            InputStream stream = (responseCode >= 200 && responseCode < 300) ? conn.getInputStream() : conn.getErrorStream();
-            try (BufferedReader br = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
-                StringBuilder resp = new StringBuilder();
-                String line;
-                while ((line = br.readLine()) != null) resp.append(line);
-                if (responseCode >= 200 && responseCode < 300) {
-                    JSONObject json = new JSONObject(resp.toString());
-                    if (json.has("text")) return json.getString("text");
-                    return json.toString();
-                } else {
-                    return "API Error (" + responseCode + "): " + resp.toString();
-                }
-            }
-        } catch (Exception e) {
-            return "Connection error: " + e.getMessage();
+        @Override
+        public void paintBorder(Component c, Graphics g, int x, int y,
+                                int width, int height) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                    RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setColor(color);
+            g2.drawRoundRect(x, y, width - 1, height - 1, radius, radius);
+            g2.dispose();
         }
     }
 
     static class PlaceholderTextField extends JTextField {
-        private String placeholder;
+        private final String placeholder;
         public PlaceholderTextField(String placeholder) {
             this.placeholder = placeholder;
             setOpaque(false);
             setColumns(1);
             setBorder(null);
-            addFocusListener(new FocusAdapter() {
-                public void focusGained(FocusEvent e) { repaint(); }
-                public void focusLost(FocusEvent e) { repaint(); }
-            });
+            setMargin(new Insets(6, 6, 6, 6));
         }
         @Override
         protected void paintComponent(Graphics g) {
             super.paintComponent(g);
             if (getText().isEmpty() && !isFocusOwner()) {
                 Graphics2D g2 = (Graphics2D) g.create();
-                g2.setFont(getFont().deriveFont(Font.ITALIC));
-                g2.setColor(new Color(140, 145, 150));
-                Insets ins = getInsets();
-                g2.drawString(placeholder, ins.left + 4, getHeight() / 2 + g2.getFontMetrics().getAscent()/2 - 2);
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                        RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setFont(getFont().deriveFont(Font.ITALIC,
+                        getFont().getSize()));
+                g2.setColor(new Color(165, 165, 175));
+                FontMetrics fm = g2.getFontMetrics();
+                int x = 2;
+                int y = (getHeight() + fm.getAscent()) / 2 - 2;
+                g2.drawString(placeholder, x, y);
                 g2.dispose();
             }
         }
     }
 
-    static class Avatar extends JComponent {
-        private final String text;
-        private final Color color;
-        public Avatar(String text, Color color) {
-            this.text = text;
-            this.color = color;
-            setPreferredSize(new Dimension(32, 32));
-            setOpaque(false);
+    static class RoundedButton extends JButton {
+        private final Color bgColor;
+        private final Color fgColor;
+
+        public RoundedButton(String text, Color bg, Color fg) {
+            super(text);
+            this.bgColor = bg;
+            this.fgColor = fg;
+            setContentAreaFilled(false);
+            setFocusPainted(false);
+            setBorderPainted(false);
+            setForeground(fgColor);
+            setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         }
+
         @Override
         protected void paintComponent(Graphics g) {
             Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g2.setColor(color);
-            g2.fillOval(0,0,getWidth(),getHeight());
-            g2.setColor(Color.WHITE);
-            g2.setFont(new Font("Segoe UI", Font.BOLD, 12));
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                    RenderingHints.VALUE_ANTIALIAS_ON);
+            int arc = 18;
+            g2.setColor(bgColor);
+            g2.fillRoundRect(0, 0, getWidth(), getHeight(), arc, arc);
+            g2.setColor(fgColor);
+            g2.setFont(getFont());
             FontMetrics fm = g2.getFontMetrics();
-            int tw = fm.stringWidth(text);
-            int th = fm.getAscent();
-            g2.drawString(text, (getWidth()-tw)/2, (getHeight()+th)/2 - 2);
+            g2.drawString(getText(),
+                    (getWidth() - fm.stringWidth(getText())) / 2,
+                    (getHeight() + fm.getAscent() - fm.getDescent()) / 2);
             g2.dispose();
-        }
-    }
-
-    static class BubblePanel extends JPanel {
-        private final String text;
-        private final boolean isUser;
-        private final String time;
-        public BubblePanel(String text, boolean isUser) {
-            this.text = text;
-            this.isUser = isUser;
-            this.time = LocalTime.now().format(DateTimeFormatter.ofPattern("hh:mm a"));
-            setOpaque(false);
-            setLayout(new BorderLayout());
-            JLabel lbl = new JLabel("<html>" + escapeHtml(text).replace("\n","<br/>") + "</html>");
-            lbl.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-            lbl.setForeground(isUser ? Color.WHITE : new Color(20, 20, 20));
-            lbl.setBorder(new EmptyBorder(6, 8, 4, 8));
-            add(lbl, BorderLayout.CENTER);
-            JLabel ts = new JLabel(time);
-            ts.setFont(new Font("Segoe UI", Font.PLAIN, 9));
-            ts.setForeground(isUser ? new Color(230,230,230) : new Color(120,120,130));
-            ts.setBorder(new EmptyBorder(0, 8, 6, 8));
-            add(ts, BorderLayout.SOUTH);
-            setBorder(new EmptyBorder(2,2,2,2));
-        }
-
-        @Override
-        protected void paintComponent(Graphics g) {
-            int arc = 12;
-            Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            int w = getWidth();
-            int h = getHeight();
-            if (isUser) {
-                g2.setColor(new Color(0, 120, 212));
-                g2.fillRoundRect(0, 0, w, h, arc, arc);
-                int[] xs = {w-6, w+4, w-6};
-                int[] ys = {h-14, h-9, h-6};
-                g2.fillPolygon(xs, ys, 3);
-            } else {
-                g2.setColor(new Color(240, 243, 245));
-                g2.fillRoundRect(0, 0, w, h, arc, arc);
-            }
-            g2.dispose();
-            super.paintComponent(g);
-        }
-
-        private static String escapeHtml(String s) {
-            return s.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;");
         }
     }
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
-            CohereChatBot ui = new CohereChatBot();
-            ui.setVisible(true);
+            try {
+                UIManager.setLookAndFeel(
+                        UIManager.getSystemLookAndFeelClassName());
+            } catch (Exception ignored) {}
+            new CohereChatBot().setVisible(true);
         });
     }
 }
-
